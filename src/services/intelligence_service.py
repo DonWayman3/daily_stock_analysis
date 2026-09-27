@@ -595,6 +595,14 @@ class IntelligenceService:
 
     def _parse_feed(self, content: bytes, *, source_name: str, limit: int) -> List[FeedEntry]:
         try:
+            # SECURITY: Reject XML with DOCTYPE/ENTITY declarations to prevent
+            # Billion Laughs (entity expansion) denial-of-service. Legitimate
+            # RSS/Atom feeds do not use DTD entities.
+            head = content[:4096].decode('utf-8', 'replace').upper()
+            if '<!DOCTYPE' in head or '<!ENTITY' in head:
+                raise IntelligenceServiceError(
+                    'feed rejected: DTD/entity declarations not allowed (DoS protection)'
+                )
             root = ET.fromstring(content)
         except ET.ParseError as exc:
             raise IntelligenceServiceError(f"invalid RSS/Atom feed: {exc}") from exc
